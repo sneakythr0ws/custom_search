@@ -1,0 +1,10 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+### IntelliJ IDEA ###
+.idea
+*.iml
+
+/src/main/resources/application-dev.properties
+/src/test/java/org/nick/util/customsearch/SearchServiceTest.java
+/src/test/java/org/nick/util/customsearch/ServicesTestConfig.java
