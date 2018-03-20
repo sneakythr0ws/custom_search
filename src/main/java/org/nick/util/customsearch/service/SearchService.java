@@ -99,6 +99,7 @@ public class SearchService {
                 });
     }
 
+    //todo simplify
     private boolean filterStores(Store store, Collection<Query> queries) {
         return queries.stream().map(query ->
                 httpClient.sendAsync(
@@ -124,6 +125,7 @@ public class SearchService {
         return responseBody.contains("items-list util-clearfix");
     }
 
+    //todo use URIBuilder
     private URI createInstoreSearchURL(String storeLink, Query criteria) {
         //todo add all criteria parts
         final String preparedStoreLink = storeLink.startsWith("//") ? "http:" + storeLink : storeLink;
@@ -135,6 +137,7 @@ public class SearchService {
         }
     }
 
+    //todo simplify
     private Stream<Store> allStoresByQuery(final Query query) {
         return IntStream.range(1, query.getPages4Processing() + 1).parallel().boxed()
                 .map(page -> CompletableFuture
