@@ -1,6 +1,5 @@
 package org.nick.util.customsearch.model;
 
-import lombok.RequiredArgsConstructor;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
@@ -9,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Value
-@RequiredArgsConstructor(staticName = "of")
 public class Query {
     private String searchText;
     private Integer minPrice;
