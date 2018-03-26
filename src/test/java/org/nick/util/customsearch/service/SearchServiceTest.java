@@ -1,6 +1,7 @@
 package org.nick.util.customsearch.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -40,6 +42,7 @@ class SearchServiceTest {
         //call real methods
         when(searchService.findInStores(anyString(), anyString())).thenCallRealMethod();
         when(searchService.findInStores(anyList())).thenCallRealMethod();
+        when(searchService.storeHasItem(anyString())).thenCallRealMethod();
         //allStoresByQuery
         when(searchService.allStoresByQuery(QUERY_1)).thenReturn(Stream.of(Q1S1, Q1S2));
         //filterStores
@@ -50,5 +53,13 @@ class SearchServiceTest {
     @Test
     void findInStores() {
         assertEquals(Set.of(Q1S1), searchService.findInStores(List.of(QUERY_1, QUERY_2)), "");
+    }
+
+    @Test
+    void storeHasItem() {
+        assertTrue(searchService.storeHasItem("items-list util-clearfix"));
+        assertTrue(searchService.storeHasItem("items-list util-clearfix some other text"));
+        assertFalse(searchService.storeHasItem("items-list some other text util-clearfix"));
+        assertFalse(searchService.storeHasItem("123"));
     }
 }

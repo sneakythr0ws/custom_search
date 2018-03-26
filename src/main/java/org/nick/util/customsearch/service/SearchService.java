@@ -20,7 +20,10 @@ import javax.annotation.PreDestroy;
 import java.io.IOException;
 import java.net.*;
 import java.time.Duration;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -93,11 +96,6 @@ public class SearchService {
                 .map(storeNode -> new Store(storeNode.getAttribute("href").orElse(""), storeNode.getText().orElse(""))));
     }
 
-    /*Set<Store> getSearchResults(final URL url) {
-        return getStores(url).collect(Collectors.toSet())
-
-    }*/
-
     //todo simplify
     boolean filterStores(Store store, List<Query> queries) {
         return queries.stream().map(query ->
@@ -120,7 +118,7 @@ public class SearchService {
                 .stream().map(CompletableFuture::join).reduce((a, b) -> a & b).orElse(false); // merge responses
     }
 
-    private boolean storeHasItem(String responseBody) {
+    boolean storeHasItem(String responseBody) {
         return responseBody.contains("items-list util-clearfix");
     }
 
