@@ -40,7 +40,6 @@ class SearchServiceTest {
     @BeforeEach
     void beforeAll() {
         //call real methods
-        when(searchService.findInStores(anyString(), anyString())).thenCallRealMethod();
         when(searchService.findInStores(anyList())).thenCallRealMethod();
         when(searchService.storeHasItem(anyString())).thenCallRealMethod();
         //allStoresByQuery

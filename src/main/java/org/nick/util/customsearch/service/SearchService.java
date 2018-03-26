@@ -150,13 +150,9 @@ public class SearchService {
                 .flatMap(x -> x);
     }
 
-    public Set<Store> findInStores(final String... queries) {
-        Assert.isTrue(queries.length > 1, "Less than 2 queries");
-
-        return findInStores(Stream.of(queries).map(Query::of).collect(Collectors.toList()));
-    }
-
     public Set<Store> findInStores(final List<Query> queries) {
+        Assert.isTrue(queries.size() > 1, "Less than 2 queries");
+
         final List<Query> subQueryList = queries.stream().skip(1).collect(Collectors.toList());
         final Optional<Query> firstQuery = queries.stream().findFirst();
 
