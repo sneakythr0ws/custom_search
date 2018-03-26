@@ -3,7 +3,6 @@ package org.nick.util.customsearch.service;
 import io.webfolder.ui4j.api.browser.BrowserFactory;
 import io.webfolder.ui4j.api.browser.Page;
 import io.webfolder.ui4j.api.browser.PageConfiguration;
-import io.webfolder.ui4j.api.dom.Document;
 import io.webfolder.ui4j.api.interceptor.Interceptor;
 import io.webfolder.ui4j.api.interceptor.Request;
 import io.webfolder.ui4j.api.interceptor.Response;
@@ -15,6 +14,7 @@ import org.nick.util.customsearch.model.Query;
 import org.nick.util.customsearch.model.Store;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.Assert;
 
 import javax.annotation.PreDestroy;
 import java.io.IOException;
@@ -62,7 +62,7 @@ public class SearchService {
 
     private final HttpClient httpClient;
 
-    private Optional<Document> getDocument(final URL url) {
+    private Stream<Store> getStores(final URL url) {
         final Interceptor interceptor = new Interceptor() {
             @Override
             public void beforeLoad(Request request) {
@@ -86,21 +86,20 @@ public class SearchService {
         final Page page = BrowserFactory.getWebKit().navigate(url.toString(), pageConfiguration);
         page.executeScript("document.documentElement.innerHTML");
 
-        return Optional.ofNullable(page.getDocument());
+        return Optional.ofNullable(page.getDocument()).or(() -> {
+            log.warn("[DOCUMENT ERROR] {}", url);
+            return Optional.empty();
+        }).stream().flatMap(document -> document.queryAll(SELECTOR_LIST_ITEM_STORE).stream()
+                .map(storeNode -> new Store(storeNode.getAttribute("href").orElse(""), storeNode.getText().orElse(""))));
     }
 
-    private Set<Store> getSearchResults(final URL url) {
-        return getDocument(url).map(document -> document.queryAll(SELECTOR_LIST_ITEM_STORE).stream()
-                .map(storeNode -> new Store(storeNode.getAttribute("href").orElse(""), storeNode.getText().orElse("")))
-                .collect(Collectors.toSet()))
-                .orElseGet(() -> {
-                    log.warn("[DOCUMENT ERROR] {}", url);
-                    return Collections.emptySet();
-                });
-    }
+    /*Set<Store> getSearchResults(final URL url) {
+        return getStores(url).collect(Collectors.toSet())
+
+    }*/
 
     //todo simplify
-    private boolean filterStores(Store store, Collection<Query> queries) {
+    boolean filterStores(Store store, List<Query> queries) {
         return queries.stream().map(query ->
                 httpClient.sendAsync(
                         newBuilder(createInstoreSearchURL(store.getLink(), query))
@@ -138,26 +137,28 @@ public class SearchService {
     }
 
     //todo simplify
-    private Stream<Store> allStoresByQuery(final Query query) {
+    Stream<Store> allStoresByQuery(final Query query) {
         return IntStream.range(1, query.getPages4Processing() + 1).parallel().boxed()
                 .map(page -> CompletableFuture
-                        .supplyAsync(() -> url(query, page).map(this::getSearchResults).orElse(Collections.emptySet()), POOL_WEBKIT)
-                        .thenApplyAsync(Optional::of)
+                        .supplyAsync(() -> url(query, page).stream().flatMap(this::getStores), POOL_WEBKIT)
+                        //.thenApplyAsync(x -> x)
                         .exceptionally(exception -> {
                             log.warn("[EXCEPTION] {} [QUERY] {}", exception.getMessage(), query);
                             log.debug("[EXCEPTION] " + exception.getMessage() + " [QUERY] " + query, exception);
-                            return Optional.empty();
+                            return Stream.empty();
                         })
                 ).collect(Collectors.toList()) //for async
                 .stream().map(CompletableFuture::join) //start http
-                .flatMap(Optional::stream).flatMap(Collection::stream);
+                .flatMap(x -> x);
     }
 
     public Set<Store> findInStores(final String... queries) {
+        Assert.isTrue(queries.length > 1, "Less than 2 queries");
+
         return findInStores(Stream.of(queries).map(Query::of).collect(Collectors.toList()));
     }
 
-    public Set<Store> findInStores(final Collection<Query> queries) {
+    public Set<Store> findInStores(final List<Query> queries) {
         final List<Query> subQueryList = queries.stream().skip(1).collect(Collectors.toList());
         final Optional<Query> firstQuery = queries.stream().findFirst();
 
