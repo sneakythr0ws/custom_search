@@ -1,19 +1,22 @@
 package org.nick.util.customsearch.model;
 
-import lombok.RequiredArgsConstructor;
-import lombok.Value;
-import lombok.extern.slf4j.Slf4j;
+import lombok.*;
 
 /**
  * Created by VNikolaenko on 26.06.2015.
  */
-@Slf4j
-@Value
-@RequiredArgsConstructor(staticName = "of")
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder(builderMethodName = "hiddenBuilder")
+@Getter
 public class Query {
-    private final String searchText;
-    private final Integer minPrice = null;
-    private final Integer maxPrice = null;
-    private final String shippingMethod = null;
-    private final Integer pages4Processing = 1;
+    private String searchText;
+    private Integer minPrice;
+    private Integer maxPrice;
+    private String shippingMethod;
+    private Integer pages4Processing;
+
+    public static QueryBuilder builder(String searchText) {
+        return hiddenBuilder().searchText(searchText);
+    }
 }

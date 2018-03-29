@@ -5,7 +5,6 @@ import org.nick.util.customsearch.model.Query;
 import org.nick.util.customsearch.model.Store;
 import org.nick.util.customsearch.service.SearchService;
 import org.springframework.util.Assert;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;

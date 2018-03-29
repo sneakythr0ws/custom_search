@@ -1,5 +1,6 @@
 package org.nick.util.customsearch.model;
 
+import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
 
@@ -8,6 +9,7 @@ import lombok.Value;
  */
 @Value
 @RequiredArgsConstructor
+@EqualsAndHashCode(of = "link")
 public class Store {
     private final String link;
     private final String title;

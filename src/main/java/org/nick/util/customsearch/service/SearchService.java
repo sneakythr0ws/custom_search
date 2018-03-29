@@ -69,29 +69,39 @@ public class SearchService {
 
     private final HttpClient httpClient;
 
+    @RequiredArgsConstructor
+    private static class ProxyInterceptor implements Interceptor {
+        private final URL url;
+        private final String proxyHost;
+        private final int proxyPort;
+
+        static ProxyInterceptor of(URL url, String proxyHost, int proxyPort) {
+            return new ProxyInterceptor(url, proxyHost, proxyPort);
+        }
+
+        @Override
+        public void afterLoad(Response response) {
+        }
+
+        @Override
+        public void beforeLoad(Request request) {
+            try {
+                final URLConnection urlConnection = url.openConnection(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort)));
+                urlConnection.setConnectTimeout(5000);
+                urlConnection.setReadTimeout(5000);
+                request.setUrlConnection(urlConnection);
+            } catch (IOException e) {
+                throw new RuntimeException("Proxy fatal error", e);
+            }
+            request.setCookies(SEARCH_COOKIES);
+        }
+    }
+
     private Stream<Store> getStores(final URI uri) {
         try {
             final URL url = uri.toURL();
 
-            final Interceptor interceptor = new Interceptor() {
-                @Override
-                public void beforeLoad(Request request) {
-                    try {
-                        final URLConnection urlConnection = url.openConnection(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort)));
-                        urlConnection.setConnectTimeout(5000);
-                        urlConnection.setReadTimeout(5000);
-                        request.setUrlConnection(urlConnection);
-                    } catch (IOException e) {
-                        throw new RuntimeException("Fatal error", e);
-                    }
-                    request.setCookies(SEARCH_COOKIES);
-                }
-
-                @Override
-                public void afterLoad(Response response) {
-                }
-            };
-            final PageConfiguration pageConfiguration = new PageConfiguration(interceptor);
+            final PageConfiguration pageConfiguration = new PageConfiguration(ProxyInterceptor.of(url, proxyHost, proxyPort));
             pageConfiguration.setInterceptAllRequests(true);
             final Page page = BrowserFactory.getWebKit().navigate(uri.toString(), pageConfiguration);
             page.executeScript("document.documentElement.innerHTML");
@@ -122,7 +132,7 @@ public class SearchService {
                             }
                         })
                         .exceptionally(exception -> { // handle exceptions
-                            log.warn("[EXCEPTION] {} [QUERY] {}", exception.getMessage(), query);
+                            log.warn("[FILTER EXCEPTION] {} [QUERY] {}", exception.getMessage(), query);
                             log.debug("[EXCEPTION] " + exception.getMessage() + " [QUERY] " + query, exception);
                             return false;
                         })).collect(Collectors.toList())//for async
@@ -141,12 +151,12 @@ public class SearchService {
 
     //todo simplify
     Stream<Store> allStoresByQuery(final Query query) {
-        return IntStream.range(1, query.getPages4Processing() + 1).parallel().boxed()
+        return IntStream.range(1, ofNullable(query.getPages4Processing()).orElse(1) + 1).parallel().boxed()
                 .map(page -> CompletableFuture
                         .supplyAsync(() -> buildSearchURL(mainPath, query, page).stream().flatMap(this::getStores), POOL_WEBKIT)
                         //.thenApplyAsync(x -> x)
                         .exceptionally(exception -> {
-                            log.warn("[EXCEPTION] {} [QUERY] {}", exception.getMessage(), query);
+                            log.warn("[STORES EXCEPTION] {} [QUERY] {}", exception.getMessage(), query);
                             log.debug("[EXCEPTION] " + exception.getMessage() + " [QUERY] " + query, exception);
                             return Stream.empty();
                         })
@@ -162,7 +172,11 @@ public class SearchService {
         final Optional<Query> firstQuery = queries.stream().findFirst();
 
         if (firstQuery.isPresent()) {
-            return allStoresByQuery(firstQuery.get()).filter(store -> filterStores(store, subQueryList)).collect(Collectors.toSet());
+            return allStoresByQuery(firstQuery.get())
+                    .distinct()
+                    .filter(store -> filterStores(store, subQueryList))
+                    .peek(store -> log.info("Found {}", store.getTitle()))
+                    .collect(Collectors.toSet());
         } else {
             return Collections.emptySet();
         }
