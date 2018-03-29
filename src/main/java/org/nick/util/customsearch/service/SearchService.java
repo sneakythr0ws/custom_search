@@ -49,7 +49,7 @@ public class SearchService {
     private static final String AEP_USUC_F = "aep_usuc_f";
     private static final String SITE_GLO_REGION_RU_B_LOCALE_EN_US_C_TP_RUB = "site=glo&region=RU&b_locale=en_US&c_tp=RUB";
     private static final List<HttpCookie> SEARCH_COOKIES = Collections.singletonList(new HttpCookie(AEP_USUC_F, SITE_GLO_REGION_RU_B_LOCALE_EN_US_C_TP_RUB));
-    private static final String PATH_SEARCH_QUERY = "origin=y&SearchText={text}";
+    private static final String PATH_SEARCH_QUERY_ORIGIN = "origin";
     private static final String PATH_SEARCH_IN_STORE = "/search";
 
     private static final String PARAM_PAGE = "page";
@@ -135,7 +135,8 @@ public class SearchService {
 
     URI createStoreFilterURI(String storeLink, Query criteria) {
         return UriComponentsBuilder.fromUriString(storeLink).scheme("http").path(PATH_SEARCH_IN_STORE)
-                .query(PATH_SEARCH_QUERY).buildAndExpand(criteria.getSearchText()).toUri();
+                .queryParam(PATH_SEARCH_QUERY_ORIGIN, "y")
+                .queryParam(PARAM_MAIN_QUERY, criteria.getSearchText()).build().toUri();
     }
 
     //todo simplify
