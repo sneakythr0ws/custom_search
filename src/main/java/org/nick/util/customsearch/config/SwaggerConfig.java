@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
  * Created by vladimirn on 23.12.16.
  */
 @Configuration
-@Profile({"SWAGGER"})
+//@Profile({"SWAGGER"})
 @EnableSwagger2
 public class SwaggerConfig {
     @Bean
@@ -30,7 +30,6 @@ public class SwaggerConfig {
         Predicate<String> paths = PathSelectors.any();
         return new Docket(DocumentationType.SWAGGER_2)
                 .directModelSubstitute(LocalDate.class, String.class)
-                //.globalOperationParameters(getOperationParameters(SECURITY_HEADER_USER, ContentToolAuthFilter.SECURITY_HEADER_API_KEY, SECURITY_HEADER_PROJECT))
                 .select()
                 .apis(RequestHandlerSelectors.any())
                 .paths(paths)

@@ -27,10 +27,10 @@
     </properties>
 
     <dependencies>
-        <!--<dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>-->
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -101,7 +101,7 @@
                     <target>${maven.compiler.target}</target>
                     <compilerArgs>
                         <arg>--add-modules</arg>
-                        <arg>jdk.incubator.httpclient,java.xml.ws.annotation</arg>
+                        <arg>jdk.incubator.httpclient,java.xml.ws.annotation,java.xml.bind</arg>
                     </compilerArgs>
                 </configuration>
             </plugin>

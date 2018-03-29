@@ -1,7 +1,6 @@
 package org.nick.util.customsearch.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,9 +19,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
 
 @Slf4j
@@ -34,6 +31,8 @@ class SearchServiceTest {
     private static final Store Q1S2 = new Store("q1link2", "q1title2");
     private static final Query QUERY_1 = Query.of("query1");
     private static final Query QUERY_2 = Query.of("query2");
+    private static final String TEST_MAIN_PATH = "http://domain.com";
+
     @MockBean
     private SearchService searchService;
 
@@ -42,6 +41,8 @@ class SearchServiceTest {
         //call real methods
         when(searchService.findInStores(anyList())).thenCallRealMethod();
         when(searchService.storeHasItem(anyString())).thenCallRealMethod();
+        when(searchService.buildSearchURL(anyString(), any(Query.class), anyInt())).thenCallRealMethod();
+        when(searchService.createStoreFilterURI(anyString(), any(Query.class))).thenCallRealMethod();
         //allStoresByQuery
         when(searchService.allStoresByQuery(QUERY_1)).thenReturn(Stream.of(Q1S1, Q1S2));
         //filterStores
@@ -56,9 +57,29 @@ class SearchServiceTest {
 
     @Test
     void storeHasItem() {
-        assertTrue(searchService.storeHasItem("items-list util-clearfix"));
-        assertTrue(searchService.storeHasItem("items-list util-clearfix some other text"));
-        assertFalse(searchService.storeHasItem("items-list some other text util-clearfix"));
-        assertFalse(searchService.storeHasItem("123"));
+        assertAll("Store has item",
+                () -> assertTrue(searchService.storeHasItem("items-list util-clearfix")),
+                () -> assertTrue(searchService.storeHasItem("items-list util-clearfix some other text")),
+                () -> assertFalse(searchService.storeHasItem("items-list some other text util-clearfix")),
+                () -> assertFalse(searchService.storeHasItem("123"))
+        );
+    }
+
+    @Test
+    void buildSearchURL() {
+        assertAll("buildSearchURL",
+                () -> assertEquals("http://domain.com?SearchText=query1&page=4", searchService.buildSearchURL(TEST_MAIN_PATH, QUERY_1, 4).get().toString()),
+                () -> assertEquals("http://domain.com?SearchText=query2&page=1", searchService.buildSearchURL(TEST_MAIN_PATH, QUERY_2, 1).get().toString())
+        );
+    }
+
+    @Test
+    void createStoreFilterURI() {
+        assertAll("Store filter URI",
+                () -> assertEquals("http:/domain.com/search?origin=y&SearchText=query1", searchService.createStoreFilterURI("domain.com", QUERY_1).toString()),
+                () -> assertEquals("http://domain.com/search?origin=y&SearchText=query1", searchService.createStoreFilterURI("http://domain.com", QUERY_1).toString()),
+                () -> assertEquals("http:/domain.com/search?origin=y&SearchText=query2", searchService.createStoreFilterURI("domain.com", QUERY_2).toString()),
+                () -> assertEquals("http://domain.com/search?origin=y&SearchText=query2", searchService.createStoreFilterURI("http://domain.com", QUERY_2).toString())
+        );
     }
 }
