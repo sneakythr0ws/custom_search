@@ -1,7 +1,6 @@
 package org.nick.util.customsearch.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.webfolder.ui4j.api.dom.Element;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,7 +14,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.io.IOException;
+import java.net.URI;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -42,12 +41,12 @@ class SearchServiceTest {
     @BeforeEach
     void beforeAll() {
         //call real methods
-        when(searchService.findInStores(anyList())).thenCallRealMethod();
+        when(searchService.findStores(anyList())).thenCallRealMethod();
         when(searchService.storeHasItem(anyString())).thenCallRealMethod();
         when(searchService.buildSearchURL(anyString(), any(Query.class), anyInt())).thenCallRealMethod();
         when(searchService.createStoreFilterURI(anyString(), any(Query.class))).thenCallRealMethod();
-        //allStoresByQuery
-        when(searchService.allStoresByQuery(QUERY_1)).thenReturn(Stream.of(Q1S1, Q1S2));
+        //storeStreamByQuery
+        when(searchService.storeStreamByQuery(QUERY_1)).thenReturn(Stream.of(Q1S1, Q1S2));
         //filterStores
         when(searchService.filterStores(Q1S1, Collections.singletonList(QUERY_2))).thenReturn(true);
         when(searchService.filterStores(Q1S2, Collections.singletonList(QUERY_2))).thenReturn(false);
@@ -55,7 +54,7 @@ class SearchServiceTest {
 
     @Test
     void findInStores() {
-        assertEquals(Set.of(Q1S1), searchService.findInStores(List.of(QUERY_1, QUERY_2)), "");
+        assertEquals(Set.of(Q1S1), searchService.findStores(List.of(QUERY_1, QUERY_2)), "");
     }
 
     @Test

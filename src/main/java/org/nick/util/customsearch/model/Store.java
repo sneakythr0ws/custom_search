@@ -10,7 +10,7 @@ import lombok.Value;
 @Value
 @RequiredArgsConstructor
 @EqualsAndHashCode(of = "link")
-public class Store {
+public class Store implements Searchable {
     private final String link;
     private final String title;
 }
