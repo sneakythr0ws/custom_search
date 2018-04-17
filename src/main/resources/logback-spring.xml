@@ -4,12 +4,12 @@
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://ch.qos.logback/xml/ns/logback https://raw.githubusercontent.com/enricopulatzo/logback-XSD/master/src/main/xsd/logback.xsd">
     <include resource="org/springframework/boot/logging/logback/base.xml"/>
-    <!--<logger name="org.nick.util.customsearch" level="info"/>
+    <!--<logger name="jdk.internal.httpclient" level="debug"/>-->
+    <logger name="org.nick.util.customsearch" level="info"/>
     <logger name="org.springframework.core " level="error"/>
     <logger name="org.springframework.beans" level="error"/>
     <logger name="org.springframework.context" level="error"/>
     <logger name="org.springframework.transaction" level="error"/>
     <logger name="org.springframework.web" level="error"/>
-    <logger name="org.springframework.test" level="error"/>-->
-    <
+    <logger name="org.springframework.test" level="error"/>
 </configuration>

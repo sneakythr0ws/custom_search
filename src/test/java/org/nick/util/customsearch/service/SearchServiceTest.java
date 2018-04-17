@@ -1,7 +1,5 @@
 package org.nick.util.customsearch.service;
 
-import io.webfolder.ui4j.api.dom.Element;
-import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,7 +12,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.net.URI;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -24,15 +21,17 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
 
-@Slf4j
+//@Slf4j
 @ExtendWith(SpringExtension.class)
 @ActiveProfiles("dev")
 @ContextConfiguration(classes = {UtilConfig.class, ServicesTestConfig.class})
 class SearchServiceTest {
     private static final Store Q1S1 = new Store("q1link1", "q1title1");
     private static final Store Q1S2 = new Store("q1link2", "q1title2");
-    private static final Query QUERY_1 = Query.builder("query1").build();
-    private static final Query QUERY_2 = Query.builder("query2").pages4Processing(1).build();
+    /*private static final Query QUERY_1 = Query.builder("query1").build();
+    private static final Query QUERY_2 = Query.builder("query2").pages4Processing(1).build();*/
+    private static final Query QUERY_1 = Query.build("query1");
+    private static final Query QUERY_2 = Query.build("query2");
     private static final String TEST_MAIN_PATH = "http://domain.com";
 
     @MockBean

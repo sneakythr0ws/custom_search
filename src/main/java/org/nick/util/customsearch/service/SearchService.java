@@ -1,22 +1,14 @@
 package org.nick.util.customsearch.service;
 
-import io.webfolder.ui4j.api.browser.BrowserFactory;
-import io.webfolder.ui4j.api.browser.Page;
-import io.webfolder.ui4j.api.browser.PageConfiguration;
-import io.webfolder.ui4j.api.dom.Document;
-import io.webfolder.ui4j.api.dom.Element;
-import io.webfolder.ui4j.api.interceptor.Interceptor;
-import io.webfolder.ui4j.api.interceptor.Request;
-import io.webfolder.ui4j.api.interceptor.Response;
 import jdk.incubator.http.HttpClient;
 import jdk.incubator.http.HttpRequest;
 import jdk.incubator.http.HttpResponse;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.nick.util.customsearch.model.Item;
 import org.nick.util.customsearch.model.Query;
 import org.nick.util.customsearch.model.Searchable;
 import org.nick.util.customsearch.model.Store;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
@@ -24,7 +16,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import javax.annotation.PreDestroy;
 import java.io.IOException;
-import java.net.*;
+import java.net.HttpCookie;
+import java.net.URI;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -32,6 +25,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -44,12 +39,17 @@ import static org.springframework.web.util.UriComponentsBuilder.fromUriString;
 /**
  * Created by VNikolaenko on 08.07.2015.
  */
-@Slf4j
+//@Slf4j
 @Service
-@RequiredArgsConstructor
+//@RequiredArgsConstructor
 public class SearchService {
-    private static final String SELECTOR_LIST_ITEM_STORE = ".list-item .store";
-    private static final String SELECTOR_LIST_ITEM = ".product";
+    public static final Pattern HREF_PATTERN = Pattern.compile("^.*href=\"(.*)\" title=.*$");
+    public static final int HREF_PATTERN_GROUP = 1;
+    public static final String PROTOCOL_HTTPS = "https";
+    private Logger log = LoggerFactory.getLogger(this.getClass().getName());
+
+    private static final String SELECTOR_LIST_ITEM_STORE = "list-item store";
+    private static final String SELECTOR_LIST_ITEM = "history-item product";
 
     private static final ExecutorService POOL_WEBKIT = Executors.newCachedThreadPool();
 
@@ -80,63 +80,35 @@ public class SearchService {
 
     private final HttpClient httpClient;
 
-    @RequiredArgsConstructor
-    private static class ProxyInterceptor implements Interceptor {
-        private final URL url;
-        private final String proxyHost;
-        private final int proxyPort;
-
-        static ProxyInterceptor of(URL url, String proxyHost, int proxyPort) {
-            return new ProxyInterceptor(url, proxyHost, proxyPort);
-        }
-
-        @Override
-        public void afterLoad(Response response) {
-        }
-
-        @Override
-        public void beforeLoad(Request request) {
-            try {
-                final URLConnection urlConnection = url.openConnection(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort)));
-                urlConnection.setConnectTimeout(5000);
-                urlConnection.setReadTimeout(5000);
-                request.setUrlConnection(urlConnection);
-            } catch (IOException e) {
-                throw new RuntimeException("Proxy fatal error", e);
-            }
-            //request.setCookies(SEARCH_COOKIES);
-        }
+    public SearchService(HttpClient httpClient) {
+        this.httpClient = httpClient;
     }
 
-    private Optional<Document> getDocument(URL url) {
-        return getDocument(url, 0);
-    }
-
-    private Optional<Document> getDocument(URL url, int attempt) {
-        final PageConfiguration pageConfiguration = new PageConfiguration(ProxyInterceptor.of(url, proxyHost, proxyPort));
-        pageConfiguration.setInterceptAllRequests(true);
-        try (Page page = BrowserFactory.getWebKit().navigate(url.toString(), pageConfiguration)) {
-            if (page.getDocument().getTitle().orElse("").toLowerCase().contains("login.")) {
-                if (attempt == loginAttemptLimit) {
-                    log.warn("Login attempt limit reached {}", url);
-                    return Optional.empty();
-                } else {
-                    return getDocument(url, attempt + 1);
-                }
-            } else {
-                page.executeScript("document.documentElement.innerHTML");
-                return Optional.of(page.getDocument());
-            }
-        }
-    }
-
-    private Stream<Element> getElements(URI uri, String selector) {
+    private Stream<String> getElements(URI uri, String selector) {
         try {
-            return getDocument(uri.toURL()).stream()
-                    .map(document -> document.queryAll(selector)).flatMap(Collection::stream);
-        } catch (MalformedURLException e) {
-            log.warn("URI ERROR {}", uri.toString(), e);
-            return Stream.empty();
+            final HttpResponse<String> httpResponse = httpClient.send(newBuilder(uri)
+                    .timeout(Duration.ofSeconds(15))
+                    .setHeader("cookie","aep_usuc_f=site=glo&region=RU&b_locale=en_US&c_tp=EUR")
+                    .build(), asString());
+
+            return Stream.of(httpResponse.body().split("\\r?\\n"))
+                    .filter(line -> line.contains(selector))
+                    .map(this::extractHref)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get);
+        } catch (IOException | InterruptedException e) {
+            log.warn("URI error {}", uri);
+        }
+
+        return Stream.empty();
+    }
+
+    private Optional<String> extractHref(String line) {
+        final Matcher matcher = HREF_PATTERN.matcher(line);
+        if (matcher.matches()) {
+            return Optional.of(fromUriString(matcher.group(HREF_PATTERN_GROUP)).scheme(PROTOCOL_HTTPS).toUriString());
+        } else {
+            return Optional.empty();
         }
     }
 
@@ -148,7 +120,7 @@ public class SearchService {
      */
     private Stream<Store> elementStoreMapper(final URI uri) {
         return getElements(uri, SELECTOR_LIST_ITEM_STORE)
-                .map(storeNode -> new Store(storeNode.getAttribute("href").orElse(""), storeNode.getText().orElse("")));
+                .map(storeNode -> new Store(storeNode, storeNode));
     }
 
     /**
@@ -158,12 +130,7 @@ public class SearchService {
      * @return - stream of found items
      */
     public Stream<Item> elementItemMapper(final URI uri) {
-        return getElements(uri, SELECTOR_LIST_ITEM)
-                .map(itemNode -> new Item(itemNode.getAttribute("href")
-                        .map(UriComponentsBuilder::fromUriString)
-                        .map(builder -> builder.scheme("http"))
-                        .map(UriComponentsBuilder::toUriString)
-                        .orElse("")));
+        return getElements(uri, SELECTOR_LIST_ITEM).map(Item::new);
     }
 
     public Set<Item> searchQueryItems(final Query query) {
