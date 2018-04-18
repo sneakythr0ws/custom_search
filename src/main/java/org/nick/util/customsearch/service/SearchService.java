@@ -10,16 +10,22 @@ import org.nick.util.customsearch.model.Store;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import javax.annotation.PreDestroy;
-import java.io.IOException;
 import java.net.HttpCookie;
 import java.net.URI;
 import java.time.Duration;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -34,6 +40,7 @@ import java.util.stream.Stream;
 import static java.util.Optional.ofNullable;
 import static jdk.incubator.http.HttpRequest.newBuilder;
 import static jdk.incubator.http.HttpResponse.BodyHandler.asString;
+import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.web.util.UriComponentsBuilder.fromUriString;
 
 /**
@@ -85,22 +92,17 @@ public class SearchService {
     }
 
     private Stream<String> getElements(URI uri, String selector) {
-        try {
-            final HttpResponse<String> httpResponse = httpClient.send(newBuilder(uri)
-                    .timeout(Duration.ofSeconds(15))
-                    .setHeader("cookie","aep_usuc_f=site=glo&region=RU&b_locale=en_US&c_tp=EUR")
-                    .build(), asString());
+        final HttpHeaders headers = new HttpHeaders();
+        headers.add("Cookie", "aep_usuc_f=site=glo&region=RU&b_locale=en_US&c_tp=EUR");
+        final ResponseEntity<String> responseEntity = new RestTemplate().exchange(uri.toString(), GET, new HttpEntity<String>(headers), String.class);
 
-            return Stream.of(httpResponse.body().split("\\r?\\n"))
-                    .filter(line -> line.contains(selector))
-                    .map(this::extractHref)
-                    .filter(Optional::isPresent)
-                    .map(Optional::get);
-        } catch (IOException | InterruptedException e) {
-            log.warn("URI error {}", uri);
-        }
+        //todo use jdk http client after cookiehandler fix
 
-        return Stream.empty();
+        return Stream.of(responseEntity.getBody().split("\\r?\\n"))
+                .filter(line -> line.contains(selector))
+                .map(this::extractHref)
+                .filter(Optional::isPresent)
+                .map(Optional::get);
     }
 
     private Optional<String> extractHref(String line) {
