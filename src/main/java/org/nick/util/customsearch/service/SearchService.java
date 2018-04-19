@@ -52,8 +52,6 @@ import static org.springframework.web.util.UriComponentsBuilder.fromUriString;
 //@RequiredArgsConstructor
 public class SearchService {
     public static final Pattern HREF_PATTERN = Pattern.compile("^.*href=\"(.*)\" title=.*$");
-    public static final Pattern WAREHOUSE_PATTERN = Pattern.compile("^\\S*<li>.*data-code=\"(\\D{2})\">.*$");
-    public static final int HREF_PATTERN_GROUP = 1;
     public static final String PROTOCOL_HTTPS = "https";
     private Logger log = LoggerFactory.getLogger(this.getClass().getName());
 
@@ -64,7 +62,6 @@ public class SearchService {
 
     private static final String AEP_USUC_F = "aep_usuc_f";
     private static final String SITE_GLO_REGION_RU_B_LOCALE_EN_US_C_TP_RUB = "site=glo&region=RU&b_locale=en_US&c_tp=RUB";
-    private static final List<HttpCookie> SEARCH_COOKIES = Collections.singletonList(new HttpCookie(AEP_USUC_F, SITE_GLO_REGION_RU_B_LOCALE_EN_US_C_TP_RUB));
     private static final String PATH_SEARCH_QUERY_ORIGIN = "origin";
     private static final String PATH_SEARCH_IN_STORE = "/buildSearchURI";
 
@@ -100,26 +97,30 @@ public class SearchService {
         this.objectMapper = objectMapper;
     }
 
-    public Stream<String> getMainElements(Query query, int page, String selector) {
-        final String uri = buildSearchURI(mainPath, query, page);
-        final HttpHeaders headers = new HttpHeaders();
-        if (query.isShipFromRussia()) {
-            headers.add("Cookie", "aep_usuc_f=site=glo&region=RU&b_locale=en_US&c_tp=EUR");
+    private Stream<String> getMainElements(Query query, int page, String selector) {
+        try {
+            final String uri = buildSearchURI(mainPath, query, page);
+            final HttpHeaders headers = new HttpHeaders();
+            if (query.isShipFromRussia()) {
+                headers.add("Cookie", "aep_usuc_f=site=glo&region=RU&b_locale=en_US&c_tp=EUR");
+            }
+
+            final ResponseEntity<String> responseEntity = restTemplate.exchange(uri, GET, new HttpEntity<String>(headers), String.class);
+
+            //todo use jdk http client after cookiehandler fix
+
+            return Stream.of(responseEntity.getBody().split("\\r?\\n"))
+                    .filter(line -> line.contains(selector))
+                    .map(this::extractHref)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get);
+        }catch (Exception e){
+            throw new RuntimeException();
         }
-
-        final ResponseEntity<String> responseEntity = restTemplate.exchange(uri, GET, new HttpEntity<String>(headers), String.class);
-
-        //todo use jdk http client after cookiehandler fix
-
-        return Stream.of(responseEntity.getBody().split("\\r?\\n"))
-                .filter(line -> line.contains(selector))
-                .map(this::extractHref)
-                .filter(Optional::isPresent)
-                .map(Optional::get);
     }
 
     private Optional<String> extractHref(String line) {
-        return extractGroup(HREF_PATTERN, line).map(group -> fromUriString(group).scheme(PROTOCOL_HTTPS).toUriString());
+        return extractGroup(line).map(group -> fromUriString(group).scheme(PROTOCOL_HTTPS).toUriString());
     }
 
     public Set<Item> searchQueryItems(final Query query) {
@@ -149,16 +150,12 @@ public class SearchService {
         return fromUriString(shippingPath).build(of("productId", productId));
     }
 
-    HttpRequest buildShippingRequest(Item item) {
+    private HttpRequest buildShippingRequest(Item item) {
         final UriComponents uriComponents = fromUriString(item.getLink()).build();
         final String path = uriComponents.getPath();
         final String productId = path.substring(path.lastIndexOf('/') + 1, path.lastIndexOf("."));
 
         return newBuilder(buildShippingURI(shippingPath, productId)).build();
-    }
-
-    private HttpRequest buildItemRequest(Item item) {
-        return newBuilder(fromUriString(item.getLink()).build().toUri()).build();
     }
 
     private Function<HttpResponse<String>, Item> itemHttpResponse(Query query, Item item) {
@@ -185,8 +182,8 @@ public class SearchService {
         };
     }
 
-    private Optional<String> extractGroup(Pattern pattern, String input) {
-        final Matcher matcher = pattern.matcher(input);
+    private Optional<String> extractGroup(String input) {
+        final Matcher matcher = SearchService.HREF_PATTERN.matcher(input);
         if (matcher.matches()) {
             return Optional.of(matcher.group(1));
         }
@@ -194,15 +191,6 @@ public class SearchService {
         return Optional.empty();
     }
 
-    private Set<String> getActiveWarehouses(String body) {
-        return Stream.of(body.split("\\r?\\n"))
-                .map(line -> extractGroup(WAREHOUSE_PATTERN, line))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toSet());
-    }
-
-    //todo simplify
     boolean filterStores(Store store, List<Query> queries) {
         return queries.stream().map(query -> httpClient
                 .sendAsync(newBuilder(createStoreFilterURI(store.getLink(), query)).timeout(Duration.ofSeconds(15)).build(), asString())
@@ -248,7 +236,6 @@ public class SearchService {
                 .flatMap(x -> x);
     }
 
-    //todo simplify
     Stream<Store> storeStreamByQuery(final Query query) {
         return searchableStreamByQuery(query, SELECTOR_LIST_STORE, Store::new);
     }
