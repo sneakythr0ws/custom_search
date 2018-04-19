@@ -19,7 +19,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import javax.annotation.PreDestroy;
 import java.io.IOException;
-import java.net.HttpCookie;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Collections;
@@ -51,17 +50,15 @@ import static org.springframework.web.util.UriComponentsBuilder.fromUriString;
 @Service
 //@RequiredArgsConstructor
 public class SearchService {
-    public static final Pattern HREF_PATTERN = Pattern.compile("^.*href=\"(.*)\" title=.*$");
-    public static final String PROTOCOL_HTTPS = "https";
+    private static final Pattern HREF_PATTERN = Pattern.compile("^.*href=\"(.*)\" title=.*$");
+    private static final String PROTOCOL_HTTPS = "https";
     private Logger log = LoggerFactory.getLogger(this.getClass().getName());
 
-    public static final String SELECTOR_LIST_STORE = "list-item store";
-    public static final String SELECTOR_LIST_ITEM = "history-item product";
+    private static final String SELECTOR_LIST_STORE = "list-item store";
+    private static final String SELECTOR_LIST_ITEM = "history-item product";
 
     private static final ExecutorService POOL_WEBKIT = Executors.newCachedThreadPool();
 
-    private static final String AEP_USUC_F = "aep_usuc_f";
-    private static final String SITE_GLO_REGION_RU_B_LOCALE_EN_US_C_TP_RUB = "site=glo&region=RU&b_locale=en_US&c_tp=RUB";
     private static final String PATH_SEARCH_QUERY_ORIGIN = "origin";
     private static final String PATH_SEARCH_IN_STORE = "/buildSearchURI";
 
@@ -114,7 +111,7 @@ public class SearchService {
                     .map(this::extractHref)
                     .filter(Optional::isPresent)
                     .map(Optional::get);
-        }catch (Exception e){
+        } catch (Exception e) {
             throw new RuntimeException();
         }
     }
