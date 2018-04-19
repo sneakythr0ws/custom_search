@@ -11,5 +11,4 @@
     <logger name="org.springframework.transaction" level="error"/>
     <logger name="org.springframework.web" level="error"/>
     <logger name="org.springframework.test" level="error"/>-->
-    <
 </configuration>

@@ -8,18 +8,19 @@ package org.nick.util.customsearch.model;
 @EqualsAndHashCode(of = "link")*/
 public class Store implements Searchable {
     private final String link;
-    private final String title;
 
-    public Store(String link, String title) {
+    public Store(String link) {
         this.link = link;
-        this.title = title;
     }
 
     public String getLink() {
         return link;
     }
 
-    public String getTitle() {
-        return title;
+    @Override
+    public String toString() {
+        return "Store{" +
+                "link='" + link + '\'' +
+                '}';
     }
 }

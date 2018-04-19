@@ -1,12 +1,10 @@
 package org.nick.util.customsearch.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jdk.incubator.http.HttpClient;
 import jdk.incubator.http.HttpRequest;
 import jdk.incubator.http.HttpResponse;
-import org.nick.util.customsearch.model.Item;
-import org.nick.util.customsearch.model.Query;
-import org.nick.util.customsearch.model.Searchable;
-import org.nick.util.customsearch.model.Store;
+import org.nick.util.customsearch.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,9 +14,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponents;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import javax.annotation.PreDestroy;
+import java.io.IOException;
 import java.net.HttpCookie;
 import java.net.URI;
 import java.time.Duration;
@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static java.util.Map.of;
 import static java.util.Optional.ofNullable;
 import static jdk.incubator.http.HttpRequest.newBuilder;
 import static jdk.incubator.http.HttpResponse.BodyHandler.asString;
@@ -51,12 +52,13 @@ import static org.springframework.web.util.UriComponentsBuilder.fromUriString;
 //@RequiredArgsConstructor
 public class SearchService {
     public static final Pattern HREF_PATTERN = Pattern.compile("^.*href=\"(.*)\" title=.*$");
+    public static final Pattern WAREHOUSE_PATTERN = Pattern.compile("^\\S*<li>.*data-code=\"(\\D{2})\">.*$");
     public static final int HREF_PATTERN_GROUP = 1;
     public static final String PROTOCOL_HTTPS = "https";
     private Logger log = LoggerFactory.getLogger(this.getClass().getName());
 
-    private static final String SELECTOR_LIST_ITEM_STORE = "list-item store";
-    private static final String SELECTOR_LIST_ITEM = "history-item product";
+    public static final String SELECTOR_LIST_STORE = "list-item store";
+    public static final String SELECTOR_LIST_ITEM = "history-item product";
 
     private static final ExecutorService POOL_WEBKIT = Executors.newCachedThreadPool();
 
@@ -64,7 +66,7 @@ public class SearchService {
     private static final String SITE_GLO_REGION_RU_B_LOCALE_EN_US_C_TP_RUB = "site=glo&region=RU&b_locale=en_US&c_tp=RUB";
     private static final List<HttpCookie> SEARCH_COOKIES = Collections.singletonList(new HttpCookie(AEP_USUC_F, SITE_GLO_REGION_RU_B_LOCALE_EN_US_C_TP_RUB));
     private static final String PATH_SEARCH_QUERY_ORIGIN = "origin";
-    private static final String PATH_SEARCH_IN_STORE = "/search";
+    private static final String PATH_SEARCH_IN_STORE = "/buildSearchURI";
 
     private static final String PARAM_PAGE = "page";
     private static final String PARAM_MIN_PRICE = "minPrice";
@@ -85,16 +87,27 @@ public class SearchService {
     @Value("${app.path}")
     private String mainPath;
 
-    private final HttpClient httpClient;
+    @Value("${app.shippingPath}")
+    private String shippingPath;
 
-    public SearchService(HttpClient httpClient) {
+    private final HttpClient httpClient;
+    private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
+
+    public SearchService(HttpClient httpClient, RestTemplate restTemplate, ObjectMapper objectMapper) {
         this.httpClient = httpClient;
+        this.restTemplate = restTemplate;
+        this.objectMapper = objectMapper;
     }
 
-    private Stream<String> getElements(URI uri, String selector) {
+    public Stream<String> getMainElements(Query query, int page, String selector) {
+        final String uri = buildSearchURI(mainPath, query, page);
         final HttpHeaders headers = new HttpHeaders();
-        headers.add("Cookie", "aep_usuc_f=site=glo&region=RU&b_locale=en_US&c_tp=EUR");
-        final ResponseEntity<String> responseEntity = new RestTemplate().exchange(uri.toString(), GET, new HttpEntity<String>(headers), String.class);
+        if (query.isShipFromRussia()) {
+            headers.add("Cookie", "aep_usuc_f=site=glo&region=RU&b_locale=en_US&c_tp=EUR");
+        }
+
+        final ResponseEntity<String> responseEntity = restTemplate.exchange(uri, GET, new HttpEntity<String>(headers), String.class);
 
         //todo use jdk http client after cookiehandler fix
 
@@ -106,58 +119,42 @@ public class SearchService {
     }
 
     private Optional<String> extractHref(String line) {
-        final Matcher matcher = HREF_PATTERN.matcher(line);
-        if (matcher.matches()) {
-            return Optional.of(fromUriString(matcher.group(HREF_PATTERN_GROUP)).scheme(PROTOCOL_HTTPS).toUriString());
-        } else {
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * Element Store mapper
-     *
-     * @param uri - page uri
-     * @return - stream of found stores
-     */
-    private Stream<Store> elementStoreMapper(final URI uri) {
-        return getElements(uri, SELECTOR_LIST_ITEM_STORE)
-                .map(storeNode -> new Store(storeNode, storeNode));
-    }
-
-    /**
-     * Element Item mapper
-     *
-     * @param uri - page uri
-     * @return - stream of found items
-     */
-    public Stream<Item> elementItemMapper(final URI uri) {
-        return getElements(uri, SELECTOR_LIST_ITEM).map(Item::new);
+        return extractGroup(HREF_PATTERN, line).map(group -> fromUriString(group).scheme(PROTOCOL_HTTPS).toUriString());
     }
 
     public Set<Item> searchQueryItems(final Query query) {
-        return searchableStreamByQuery(query, this::elementItemMapper)
+        return searchableStreamByQuery(query, SELECTOR_LIST_ITEM, Item::new)
                 .map(requestAndSetSippingMethods(query))
                 .collect(Collectors.toList()).stream().map(CompletableFuture::join) //for async
                 .filter(filterWarehouse(query))
                 .collect(Collectors.toSet());
     }
 
-    private static final String RUSSIAN_WAREHOUSE = "";
-
     private Predicate<Item> filterWarehouse(Query query) {
-        return item -> !query.isShipFromRussia() || item.getActiveWarehouses().contains(RUSSIAN_WAREHOUSE);
+        return item -> !query.isShipFromRussia() || !item.getActiveWarehouses().isEmpty();
     }
 
     private Function<Item, CompletableFuture<Item>> requestAndSetSippingMethods(Query query) {
         return item -> httpClient
-                .sendAsync(buildItemRequest(item), asString())
+                .sendAsync(buildShippingRequest(item), asString())
                 .thenApplyAsync(itemHttpResponse(query, item))
                 .exceptionally(exception -> { // handle exceptions
                     log.warn("[FILTER EXCEPTION] {} [QUERY] {}", exception.getMessage(), query);
                     log.debug("[EXCEPTION] " + exception.getMessage() + " [QUERY] " + query, exception);
                     return item;
                 });
+    }
+
+    URI buildShippingURI(String shippingPath, String productId) {
+        return fromUriString(shippingPath).build(of("productId", productId));
+    }
+
+    HttpRequest buildShippingRequest(Item item) {
+        final UriComponents uriComponents = fromUriString(item.getLink()).build();
+        final String path = uriComponents.getPath();
+        final String productId = path.substring(path.lastIndexOf('/') + 1, path.lastIndexOf("."));
+
+        return newBuilder(buildShippingURI(shippingPath, productId)).build();
     }
 
     private HttpRequest buildItemRequest(Item item) {
@@ -167,7 +164,12 @@ public class SearchService {
     private Function<HttpResponse<String>, Item> itemHttpResponse(Query query, Item item) {
         return response -> {
             if (response.statusCode() == 200) {
-                return item.setActiveWarehouses(getActiveWarehouses(response.body()));
+                try {
+                    return item.setActiveWarehouses(objectMapper.readValue(response.body().substring(1, response.body().length() - 1), Freight.class).getFreight());
+                } catch (IOException e) {
+                    log.warn("Shipping company error {}", item.getLink());
+                    return item;
+                }
             } else { //log non 200
                 log.warn("Not 200 status code {} [ITEM] {} [QUERY] {}", response.statusCode(), item, query);
                 return item;
@@ -183,8 +185,21 @@ public class SearchService {
         };
     }
 
-    private List<String> getActiveWarehouses(String body) {
-        return Collections.emptyList();
+    private Optional<String> extractGroup(Pattern pattern, String input) {
+        final Matcher matcher = pattern.matcher(input);
+        if (matcher.matches()) {
+            return Optional.of(matcher.group(1));
+        }
+
+        return Optional.empty();
+    }
+
+    private Set<String> getActiveWarehouses(String body) {
+        return Stream.of(body.split("\\r?\\n"))
+                .map(line -> extractGroup(WAREHOUSE_PATTERN, line))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toSet());
     }
 
     //todo simplify
@@ -218,12 +233,13 @@ public class SearchService {
                 .queryParam(PARAM_MAIN_QUERY, criteria.getSearchText()).build().toUri();
     }
 
-    private <T extends Searchable> Stream<T> searchableStreamByQuery(final Query query, final Function<URI, Stream<T>> mapper) {
+    private <T extends Searchable> Stream<T> searchableStreamByQuery(final Query query, final String selector, Function<String, T> mapper) {
+        //todo use async jdk http client after cookie handler fix
         return IntStream.range(1, ofNullable(query.getPages4Processing()).orElse(1) + 1).boxed()
                 .map(page -> CompletableFuture
-                        .supplyAsync(() -> buildSearchURL(mainPath, query, page).stream().flatMap(mapper), POOL_WEBKIT)
+                        .supplyAsync(() -> getMainElements(query, page, selector).map(mapper), POOL_WEBKIT)
                         .exceptionally(exception -> {
-                            log.warn("[STORES EXCEPTION] {} [QUERY] {}", exception.getMessage(), query);
+                            log.warn("[MAIN QUERY EXCEPTION] {} {}", exception.getMessage(), query);
                             log.debug("[EXCEPTION] " + exception.getMessage() + " [QUERY] " + query, exception);
                             return Stream.empty();
                         })
@@ -234,7 +250,7 @@ public class SearchService {
 
     //todo simplify
     Stream<Store> storeStreamByQuery(final Query query) {
-        return searchableStreamByQuery(query, this::elementStoreMapper);
+        return searchableStreamByQuery(query, SELECTOR_LIST_STORE, Store::new);
     }
 
     public Set<Store> findStores(final List<Query> queries) {
@@ -247,16 +263,14 @@ public class SearchService {
             return storeStreamByQuery(firstQuery.get())
                     .distinct()
                     .filter(store -> filterStores(store, subQueryList))
-                    .peek(store -> log.info("Found {}", store.getTitle()))
                     .collect(Collectors.toSet());
         } else {
             return Collections.emptySet();
         }
     }
 
-    Optional<URI> buildSearchURL(String mainPath, Query query, Integer page) {
+    String buildSearchURI(String mainPath, Query query, Integer page) {
         final UriComponentsBuilder builder = fromUriString(mainPath)
-                .path(query.getSearchText() + ".html")
                 .queryParam(PARAM_MAIN_QUERY, query.getSearchText());
 
         ofNullable(page).ifPresent(e -> builder.queryParam(PARAM_PAGE, e));
@@ -264,7 +278,7 @@ public class SearchService {
         ofNullable(query.getMaxPrice()).ifPresent(maxPrice -> builder.queryParam(PARAM_MAX_PRICE, maxPrice));
         if (query.isShipFromRussia()) builder.queryParam(PARAM_SHIP_FROM, "ru");
 
-        return Optional.of(builder.build().toUri());
+        return builder.build().toUriString();
     }
 
     @PreDestroy
