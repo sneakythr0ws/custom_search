@@ -30,10 +30,8 @@ import static org.mockito.Mockito.when;
 class SearchServiceTest {
     private static final Store Q1S1 = new Store("q1link1");
     private static final Store Q1S2 = new Store("q1link2");
-    /*private static final Query QUERY_1 = Query.builder("query1").build();
-    private static final Query QUERY_2 = Query.builder("query2").pages4Processing(1).build();*/
-    private static final Query QUERY_1 = Query.build("query1");
-    private static final Query QUERY_2 = Query.build("query2");
+    private static final Query QUERY_1 = Query.builder("query1").build();
+    private static final Query QUERY_2 = Query.builder("query2").build();
     private static final String TEST_MAIN_PATH = "http://domain.com";
 
     @MockBean

@@ -1,5 +1,6 @@
 package org.nick.util.customsearch.resource;
 
+import lombok.RequiredArgsConstructor;
 import org.nick.util.customsearch.model.Item;
 import org.nick.util.customsearch.model.Query;
 import org.nick.util.customsearch.model.Store;
@@ -14,14 +15,9 @@ import java.util.List;
 import java.util.Set;
 
 @RestController
-/*@Slf4j
-@RequiredArgsConstructor*/
+@RequiredArgsConstructor
 public class SearchResource {
     private final SearchService searchService;
-
-    public SearchResource(SearchService searchService) {
-        this.searchService = searchService;
-    }
 
     @PostMapping("/store")
     public Set<Store> findStores(@RequestBody List<Query> queries) {
@@ -31,6 +27,6 @@ public class SearchResource {
 
     @GetMapping("/item")
     public Set<Item> findItems(String searchText) {
-        return searchService.searchQueryItems(Query.build(searchText).setShipFromRussia(true));
+        return searchService.searchQueryItems(Query.builder(searchText).shipFromRussia(true).build());
     }
 }
