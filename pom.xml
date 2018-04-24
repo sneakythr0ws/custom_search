@@ -41,13 +41,13 @@
             <artifactId>lombok</artifactId>
         </dependency>-->
 
-        <!--<dependency>
+        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>1.16.21</version>
             <scope>system</scope>
-            <systemPath>lib/lombok-edge.jar</systemPath>
-        </dependency>-->
+            <systemPath>${project.basedir}/lib/lombok-edge.jar</systemPath>
+        </dependency>
 
 
 
