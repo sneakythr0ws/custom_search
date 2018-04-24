@@ -4,9 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jdk.incubator.http.HttpClient;
 import jdk.incubator.http.HttpRequest;
 import jdk.incubator.http.HttpResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.nick.util.customsearch.model.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -46,13 +46,12 @@ import static org.springframework.web.util.UriComponentsBuilder.fromUriString;
 /**
  * Created by VNikolaenko on 08.07.2015.
  */
-//@Slf4j
+@Slf4j
 @Service
-//@RequiredArgsConstructor
+@RequiredArgsConstructor
 public class SearchService {
     private static final Pattern HREF_PATTERN = Pattern.compile("^.*href=\"(.*)\" title=.*$");
     private static final String PROTOCOL_HTTPS = "https";
-    private Logger log = LoggerFactory.getLogger(this.getClass().getName());
 
     private static final String SELECTOR_LIST_STORE = "list-item store";
     private static final String SELECTOR_LIST_ITEM = "history-item product";
@@ -87,12 +86,6 @@ public class SearchService {
     private final HttpClient httpClient;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
-
-    public SearchService(HttpClient httpClient, RestTemplate restTemplate, ObjectMapper objectMapper) {
-        this.httpClient = httpClient;
-        this.restTemplate = restTemplate;
-        this.objectMapper = objectMapper;
-    }
 
     private Stream<String> getMainElements(Query query, int page, String selector) {
         try {
@@ -159,7 +152,7 @@ public class SearchService {
         return response -> {
             if (response.statusCode() == 200) {
                 try {
-                    return item.setActiveWarehouses(objectMapper.readValue(response.body().substring(1, response.body().length() - 1), Freight.class).getFreight());
+                    return item.setActiveWarehouses(objectMapper.readValue(response.body().substring(1, response.body().length() - 1), WarehousesDTO.class).warehouses);
                 } catch (IOException e) {
                     log.warn("Shipping company error {}", item.getLink());
                     return item;
